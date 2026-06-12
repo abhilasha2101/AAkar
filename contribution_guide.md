@@ -1,10 +1,7 @@
 ## Project Contribution Guide
-Welcome to the project! To keep our codebase stable and moving fast with 20 team members, we use a Fork-and-Pull workflow.
-
-* Maintainers (4 members): Review, give feedback, and merge code.
-* Contributors (16 members): Fork the repository, create feature branches, and submit Pull Requests (PRs).
-
+Welcome to the project!
 ------------------------------
+
 ## Part 1: Initial Setup (Do This Once)## 1. Fork the Repository
 
    1. Navigate to the main project repository on GitHub.
@@ -23,6 +20,7 @@ To keep your fork updated with the latest changes from the maintainers, link it 
 git remote add upstream https://github.com
 
 Verify it worked by running git remote -v. You should see both origin (your fork) and upstream (the main project).
+
 ------------------------------
 ## Part 2: Daily Working Workflow
 Always follow these steps for every new feature or bug fix to prevent code conflicts.
@@ -56,6 +54,7 @@ git push origin feature/your-feature-name
    4. Click Create pull request.
 
 ------------------------------
+
 ## Part 3: How to Handle Merge Conflicts
 If another contributor merges code that clashes with yours, GitHub will block your PR. It is the contributor's responsibility to fix this. Follow these steps in your terminal:
 ## 1. Get the Latest Main Code
@@ -71,12 +70,12 @@ git merge main
 ## 3. Fix the Conflicts manually
 Your code editor (like VS Code) will highlight the clashing lines with markers:
 
-<<<<<<< HEAD
+<<<<<<<HEAD
 Your new feature code (Current Change)
+
 =======
 The updated code currently on main (Incoming Change)
 >>>>>>> main
-
 
 * Edit the file to delete the markers (<<<<<<<, =======, >>>>>>>).
 * Clean up the code so both features work correctly together.
@@ -89,6 +88,7 @@ git commit -m "Resolve merge conflicts with main"
 git push origin feature/your-feature-name
 
 Your Pull Request on GitHub will automatically update, turn green, and allow the maintainers to merge it!
+
 ------------------------------
 ## Part 4: Golden Rules for Success
 
