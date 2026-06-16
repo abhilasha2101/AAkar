@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = '/api/v1';
 
-// Design Tokens - matching project NIC/Digital Secretariat style
+// Design Tokens - matching NIC style
 const navy = "#04122e";
 const navyLight = "#1a2744";
 const saffron = "#D4A843";
@@ -11,6 +12,31 @@ const surfaceDeep = "#edeef0";
 const white = "#ffffff";
 const gray400 = "#94a3b8";
 const gray600 = "#475569";
+
+const getDistrictForBooth = (boothId) => {
+    const lower = String(boothId).toLowerCase();
+    if (lower.includes('northwest') || lower.includes('nw')) return 'North West';
+    if (lower.includes('northeast') || lower.includes('ne')) return 'North East';
+    if (lower.includes('newdelhi') || lower.includes('nd') || lower.includes('40_004')) return 'New Delhi';
+    if (lower.includes('central') || lower.includes('c')) return 'Central';
+    if (lower.includes('southwest') || lower.includes('sw')) return 'South West';
+    if (lower.includes('southeast') || lower.includes('se')) return 'South East';
+    if (lower.includes('south') || lower.includes('s')) return 'South';
+    if (lower.includes('north') || lower.includes('n')) return 'North';
+    if (lower.includes('east') || lower.includes('e')) return 'East';
+    if (lower.includes('west') || lower.includes('w')) return 'West';
+    if (lower.includes('shahdara') || lower.includes('sh')) return 'Shahdara';
+    
+    const districts = [
+        "North West", "North", "North East", "Shahdara", "East", "West", 
+        "Central", "New Delhi", "South West", "South", "South East"
+    ];
+    let hash = 0;
+    for (let i = 0; i < lower.length; i++) {
+        hash = lower.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return districts[Math.abs(hash) % districts.length];
+};
 
 const ComplaintsPanel = () => {
     const [complaints, setComplaints] = useState([]);
@@ -28,9 +54,10 @@ const ComplaintsPanel = () => {
         try {
             const res = await fetch(`${API_BASE}/complaints/`);
             const data = await res.json();
-            setComplaints(data);
+            setComplaints(Array.isArray(data) ? data : []);
         } catch (e) {
             console.error("Failed to fetch complaints:", e);
+            setComplaints([]);
         } finally {
             setLoading(false);
         }
@@ -59,13 +86,40 @@ const ComplaintsPanel = () => {
         setExpandedRows(newExpandedRows);
     };
 
+    const { currentUser } = useAuth();
+    const isDM = currentUser?.role === 'dm';
+
+    const getDistrictFromEmail = (email) => {
+        if (!email) return null;
+        const lowerEmail = email.toLowerCase();
+        if (lowerEmail.includes('north_west')) return 'North West';
+        if (lowerEmail.includes('north_east')) return 'North East';
+        if (lowerEmail.includes('new_delhi')) return 'New Delhi';
+        if (lowerEmail.includes('south_west')) return 'South West';
+        if (lowerEmail.includes('south_east')) return 'South East';
+        if (lowerEmail.includes('_north_')) return 'North';
+        if (lowerEmail.includes('shahdara')) return 'Shahdara';
+        if (lowerEmail.includes('_east_')) return 'East';
+        if (lowerEmail.includes('_west_')) return 'West';
+        if (lowerEmail.includes('central')) return 'Central';
+        if (lowerEmail.includes('_south_')) return 'South';
+        return null;
+    };
+
+    const dmDistrict = isDM ? getDistrictFromEmail(currentUser?.email) : null;
+
+    const safeComplaints = Array.isArray(complaints) ? complaints : [];
+    const visibleComplaints = isDM && dmDistrict
+        ? safeComplaints.filter(c => getDistrictForBooth(c.booth_id) === dmDistrict)
+        : safeComplaints;
+
     // Calculate Stats
-    const totalComplaints = complaints.length;
-    const openComplaints = complaints.filter(c => (c.status || c.Status) === 'Open').length;
-    const resolvedComplaints = complaints.filter(c => (c.status || c.Status) === 'Resolved').length;
+    const totalComplaints = visibleComplaints.length;
+    const openComplaints = visibleComplaints.filter(c => (c.status || c.Status) === 'Open').length;
+    const resolvedComplaints = visibleComplaints.filter(c => (c.status || c.Status) === 'Resolved').length;
 
     // Filter logic
-    const filteredComplaints = complaints.filter(c => {
+    const filteredComplaints = visibleComplaints.filter(c => {
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         const idMatch = String(c.complaint_id).toLowerCase().includes(q);

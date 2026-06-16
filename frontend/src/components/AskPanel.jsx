@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { Network } from 'vis-network';
 import { DataSet } from 'vis-data';
 
-const API_URL = 'http://localhost:8000/api/v1/ask';
+const API_URL = '/api/v1/ask';
 
 
 const COLORS = {
@@ -28,6 +29,7 @@ const getColor = (label) => {
   }
 };
 const AskPanel = () => {
+  const { currentUser } = useAuth();
   const [selectedNode, setSelectedNode] = useState(null);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -160,12 +162,18 @@ const AskPanel = () => {
     setError(null);
     setResult(null);
     setSelectedNode(null);
+    
+    let targetQuestion = question.trim();
+    if (currentUser?.role === 'dm') {
+      targetQuestion = `For the district of ${currentUser.displayName}, ${targetQuestion}`;
+    }
+    
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: question.trim(),
+          question: targetQuestion,
           shortcut: null
         }),
       });
@@ -186,15 +194,29 @@ const AskPanel = () => {
     setResult(null);
     setSelectedNode(null);
 
+    let bodyData = { question: null, shortcut: shortcut };
+    if (currentUser?.role === 'dm') {
+      const shortcutQuestions = {
+        "SHOW_ALL_RELATIONSHIPS": "Show relationships between voters, booths, houses, areas, and complaints in the district: " + currentUser.displayName,
+        "LIST_ALL_VOTERS": "List all voters in the district: " + currentUser.displayName,
+        "list_section": "List all voter sections in the district: " + currentUser.displayName,
+        "LIST_HOUSES": "List all houses in the district: " + currentUser.displayName,
+        "HOUSE_MEMBERS": "Show count of female voters in the district: " + currentUser.displayName,
+        "SENIOR_VOTERS": "Show count of senior voters in the district: " + currentUser.displayName,
+        "YOUTH_VOTERS": "Show count of youth voters in the district: " + currentUser.displayName,
+        "VOTERS_BY_ISSUE": "Show voters and their complaints in the district: " + currentUser.displayName,
+        "AREA_RELATIONS": "Show area relations in the district: " + currentUser.displayName,
+        "FULL_GRAPH": "Show relationships between voters, booths, houses, areas, and complaints in the district: " + currentUser.displayName
+      };
+      const textQ = shortcutQuestions[shortcut] || (shortcut.replace(/_/g, ' ') + " in the district: " + currentUser.displayName);
+      bodyData = { question: textQ, shortcut: null };
+    }
+
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: null,
-          shortcut: shortcut
-
-        }),
+        body: JSON.stringify(bodyData),
       });
 
       if (!res.ok) throw new Error("Error fetching data");

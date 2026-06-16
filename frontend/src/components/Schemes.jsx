@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const API_BASE = 'http://localhost:8000/api/v1/admin';
+const API_BASE = '/api/v1/admin';
 
 const Schemes = () => {
     const [loading, setLoading] = useState(false);

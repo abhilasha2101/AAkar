@@ -1,7 +1,9 @@
+"use client";
+
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const API_BASE = 'http://localhost:8000/api/v1/auth';
+const API_BASE = '/api/v1/auth';
 const AuthContext = createContext();
 
 export function useAuth() {
@@ -12,30 +14,31 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Hydrate user from stored JWT on mount
+  // Hydrate user from stored JWT on mount — only if session marker exists
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    // Skip /me if we know there's no session (avoids red 401 in console)
+    if (!localStorage.getItem('praja_session')) {
       setLoading(false);
       return;
     }
-    fetch(`${API_BASE}/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch(`${API_BASE}/me`)
       .then((res) => {
-        if (!res.ok) throw new Error('Token expired');
+        if (!res.ok) {
+          localStorage.removeItem('praja_session');
+          return Promise.reject(new Error('Token expired'));
+        }
         return res.json();
       })
       .then((user) => {
         setCurrentUser({
           id: user.id,
           email: user.email,
-          displayName: user.role,
+          displayName: user.display_name || user.role,
           role: user.role,
         });
       })
       .catch(() => {
-        localStorage.removeItem('token');
+        setCurrentUser(null);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -60,13 +63,13 @@ export function AuthProvider({ children }) {
       throw err;
     }
 
-    localStorage.setItem('token', data.access_token);
     const user = {
       id: data.user.id,
       email: data.user.email,
-      displayName: data.user.role,
+      displayName: data.user.displayName || data.user.display_name || data.user.role,
       role: data.user.role,
     };
+    localStorage.setItem('praja_session', '1');
     setCurrentUser(user);
     return { user };
   }
@@ -86,21 +89,25 @@ export function AuthProvider({ children }) {
       throw err;
     }
 
-    localStorage.setItem('token', data.access_token);
     const user = {
       id: data.user.id,
       email: data.user.email,
-      displayName: data.user.role,
+      displayName: data.user.displayName || data.user.display_name || data.user.role,
       role: data.user.role,
     };
+    localStorage.setItem('praja_session', '1');
     setCurrentUser(user);
     return { user };
   }
 
-  function logout() {
-    localStorage.removeItem('token');
+  async function logout() {
+    try {
+      await fetch(`${API_BASE}/logout`, { method: 'POST' });
+    } catch (e) {
+      console.error("Logout request failed", e);
+    }
+    localStorage.removeItem('praja_session');
     setCurrentUser(null);
-    return Promise.resolve();
   }
 
   const value = {

@@ -12,7 +12,7 @@ const LodgeComplaintPanel = ({ boothId }) => {
 
   React.useEffect(() => {
     if (boothId) {
-      fetch(`http://localhost:8000/api/v1/drives/${boothId}`)
+      fetch(`/api/v1/drives/${boothId}`)
         .then(res => res.json())
         .then(data => setDrives(data))
         .catch(err => console.error("Failed to fetch drives:", err));
@@ -36,7 +36,7 @@ const LodgeComplaintPanel = ({ boothId }) => {
     setMessage(null);
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/complaints/lodge-complaint', {
+      const response = await fetch('/api/v1/complaints/lodge-complaint', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +97,7 @@ const LodgeComplaintPanel = ({ boothId }) => {
             </span>
             <div style={{ width: '1px', height: '12px', background: 'rgba(255,255,255,0.2)' }} />
             <span style={{ fontSize: '11px', color: 'var(--amber-500)', fontWeight: '800', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              NATIONAL SECRETARIAT <img src={logo} alt="Logo" style={{ height: '14px', filter: 'brightness(0) invert(1)' }} />
+              NATIONAL SECRETARIAT <img src={logo?.src || logo} alt="Logo" style={{ height: '14px', filter: 'brightness(0) invert(1)' }} />
             </span>
           </div>
         </div>

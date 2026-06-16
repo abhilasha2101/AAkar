@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 *,
 *::before,
@@ -48,6 +47,7 @@
 
   /* Sidebar */
   --sidebar-width: 256px;
+  --sidebar-collapsed-width: 72px;
 
   /* Radii — strictly 0px per NIC style */
   --radius-sm: 0px;
@@ -79,21 +79,39 @@ body {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  position: relative;
 }
 
 /* ═══════════════════════════════════════════
    SIDEBAR (Expanding)
 ═══════════════════════════════════════════ */
 .sidebar {
-  width: var(--sidebar-width);
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--sidebar-collapsed-width);
   background: var(--blue-600);
   border-right: 1px solid var(--blue-700);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  flex-shrink: 0;
   overflow: hidden;
-  z-index: 30;
+  z-index: 1005;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar:hover {
+  width: var(--sidebar-width);
+}
+
+.sidebar span {
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.sidebar:not(:hover) span {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .sidebar-top {
@@ -201,6 +219,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+  margin-left: var(--sidebar-collapsed-width);
 }
 
 /* ── Header ─── */

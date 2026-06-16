@@ -58,8 +58,7 @@ Thumbs.db
 # =========================
 # Neo4j Local Data (if any)
 # =========================
-neo4j/data/
-neo4j/logs/
+neo4j/
 *.db
 
 # =========================
@@ -80,3 +79,9 @@ coverage.xml
 # Data Uploads
 # =========================
 backend/data/uploads/*.csv
+
+# =========================
+# Frontend Next.js / Dev Bypass
+# =========================
+frontend/.next/
+frontend/public/dev-login.json
