@@ -42,6 +42,7 @@ import json
 import logging
 import os
 import asyncio
+import base64
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Query
 from sqlmodel import Session, select
@@ -63,6 +64,7 @@ GRAPH_API_URL = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
 
 # Simulation mode: when token is dummy, buffer replies for the simulator endpoint
 _simulated_replies: list[str] = []
+_sim_media_bytes: bytes | None = None
 _IS_SIMULATION = WHATSAPP_TOKEN in ("dummy_token", "")
 
 
@@ -170,28 +172,45 @@ async def send_template(to: str, template_name: str, lang_code: str = "en_US") -
 async def simulate_whatsapp(body: dict):
     """
     Simulates a WhatsApp message. Used by the frontend WhatsApp Simulator.
-    Accepts { phone, message }, processes through the same webhook logic,
-    and returns the bot's replies — without calling Meta's API.
+    Accepts { phone, message } for text, or { phone, is_image: true, image_data: "<base64>" }
+    for image uploads. Processes through the same webhook logic and returns the bot's replies.
     """
-    global _simulated_replies
+    global _simulated_replies, _sim_media_bytes
     _simulated_replies = []
+    _sim_media_bytes = None
 
     phone = body.get("phone", "917696138229")
-    message = body.get("message", "hi")
 
-    mock_payload = {
-        "entry": [{
-            "changes": [{
-                "value": {
-                    "messages": [{
-                        "from": phone,
-                        "type": "text",
-                        "text": {"body": message},
-                    }]
-                }
+    if body.get("is_image") and body.get("image_data"):
+        _sim_media_bytes = base64.b64decode(body["image_data"])
+        mock_payload = {
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": phone,
+                            "type": "image",
+                            "image": {"id": "sim_media_1", "mime_type": "image/jpeg"},
+                        }]
+                    }
+                }]
             }]
-        }]
-    }
+        }
+    else:
+        message = body.get("message", "hi")
+        mock_payload = {
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": phone,
+                            "type": "text",
+                            "text": {"body": message},
+                        }]
+                    }
+                }]
+            }]
+        }
 
     class _MockRequest:
         async def json(self):
@@ -242,6 +261,12 @@ async def verify_webhook(
 
 async def download_media(media_id: str) -> bytes:
     """Download media from WhatsApp via the Meta Graph API."""
+    global _sim_media_bytes
+    if _IS_SIMULATION and _sim_media_bytes is not None:
+        data = _sim_media_bytes
+        _sim_media_bytes = None
+        return data
+
     async with httpx.AsyncClient() as client:
         # Step 1: Get the download URL from the media ID
         resp = await client.get(

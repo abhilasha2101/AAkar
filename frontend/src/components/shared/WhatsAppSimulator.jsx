@@ -5,42 +5,58 @@ export default function WhatsAppSimulator() {
   const [phone, setPhone] = useState('917696138229');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
-    { from: 'bot', text: 'WhatsApp Simulator active. Send "hi" to start registration.' },
+    { from: 'bot', type: 'text', text: 'WhatsApp Simulator active. Send "hi" to start registration.' },
   ]);
   const [loading, setLoading] = useState(false);
   const [conversationState, setConversationState] = useState(null);
   const bottomRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-    setInput('');
-    setMessages(prev => [...prev, { from: 'user', text }]);
+  const sendMessage = async (opts = {}) => {
+    const text = opts.text !== undefined ? opts.text : input.trim();
+    const isImage = opts.isImage || false;
+
+    if (!text && !isImage) return;
+    if (!isImage) setInput('');
     setLoading(true);
 
+    if (isImage) {
+      setMessages(prev => [...prev, { from: 'user', type: 'image', image: opts.imageData }]);
+    } else {
+      setMessages(prev => [...prev, { from: 'user', type: 'text', text }]);
+    }
+
     try {
+      const body = { phone };
+      if (isImage) {
+        body.is_image = true;
+        body.image_data = opts.imageData.replace(/^data:image\/\w+;base64,/, '');
+      } else {
+        body.message = text;
+      }
+
       const res = await fetch('/api/v1/whatsapp/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, message: text }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.replies && data.replies.length > 0) {
         data.replies.forEach(reply => {
-          setMessages(prev => [...prev, { from: 'bot', text: reply }]);
+          setMessages(prev => [...prev, { from: 'bot', type: 'text', text: reply }]);
         });
       } else {
-        setMessages(prev => [...prev, { from: 'bot', text: '(no response)' }]);
+        setMessages(prev => [...prev, { from: 'bot', type: 'text', text: '(no response)' }]);
       }
       if (data.conversation_state) {
         setConversationState(data.conversation_state);
       }
     } catch (e) {
-      setMessages(prev => [...prev, { from: 'bot', text: `Error: ${e.message}` }]);
+      setMessages(prev => [...prev, { from: 'bot', type: 'text', text: `Error: ${e.message}` }]);
     }
     setLoading(false);
   };
@@ -52,8 +68,23 @@ export default function WhatsAppSimulator() {
     }
   };
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMessages(prev => [...prev, { from: 'bot', type: 'text', text: 'Only image files are supported.' }]);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      sendMessage({ isImage: true, imageData: reader.result });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const clearConversation = async () => {
-    setMessages([{ from: 'bot', text: 'Conversation reset. Send "hi" to start again.' }]);
+    setMessages([{ from: 'bot', type: 'text', text: 'Conversation reset. Send "hi" to start again.' }]);
     setConversationState(null);
   };
 
@@ -110,14 +141,22 @@ export default function WhatsAppSimulator() {
             display: 'flex', justifyContent: msg.from === 'user' ? 'flex-end' : 'flex-start',
           }}>
             <div style={{
-              maxWidth: '80%', padding: '8px 14px', borderRadius: 8,
+              maxWidth: '80%', padding: msg.type === 'image' ? 4 : '8px 14px', borderRadius: 8,
               fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word',
               background: msg.from === 'user' ? '#dcf8c6' : '#fff',
               borderBottomRightRadius: msg.from === 'user' ? 2 : 8,
               borderBottomLeftRadius: msg.from === 'user' ? 8 : 2,
               boxShadow: '0 1px 1px rgba(0,0,0,0.08)',
             }}>
-              {msg.text}
+              {msg.type === 'image' ? (
+                <img
+                  src={msg.image}
+                  alt="Uploaded"
+                  style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, display: 'block' }}
+                />
+              ) : (
+                msg.text
+              )}
             </div>
           </div>
         ))}
@@ -150,7 +189,17 @@ export default function WhatsAppSimulator() {
             }}
           />
           <button
-            onClick={sendMessage}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            title="Attach image"
+            style={{
+              background: loading ? '#ccc' : '#075e54',
+              border: 'none', color: '#fff', borderRadius: 8,
+              padding: '0 14px', fontSize: 18, cursor: loading ? 'default' : 'pointer',
+            }}
+          >📎</button>
+          <button
+            onClick={() => sendMessage()}
             disabled={loading || !input.trim()}
             style={{
               background: loading || !input.trim() ? '#ccc' : '#075e54',
@@ -159,6 +208,13 @@ export default function WhatsAppSimulator() {
             }}
           >➤</button>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
       </div>
     </div>
   );
