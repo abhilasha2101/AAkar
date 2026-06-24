@@ -21,9 +21,9 @@ def _is_conversational(q: str) -> bool:
     greetings = {"hi", "hello", "hey", "how are you", "who are you", "what are you", "good morning", "good evening", "thanks", "thank you"}
     return any(q_lower.startswith(g) for g in greetings) and len(q.split()) <= 6
 
-def get_sqlite_schema() -> str:
+def get_sqlite_schema(volunteer=None) -> str:
     """Returns the schema for the SQLite database."""
-    return """
+    schema = """
     Table: volunteer
     Columns:
     - id (INTEGER, primary key)
@@ -57,9 +57,25 @@ def get_sqlite_schema() -> str:
     - booth_id (VARCHAR)
     - display_name (VARCHAR)
     - created_at (DATETIME)
+
+    SQL Writing Rules:
+    - NEVER use parameter placeholders (?, :param, $1, etc.)
+    - Always write complete SQL with literal values
+    - Use LIMIT 100 instead of WHERE ... = ?
     """
 
-def ask_election_question(question=None, shortcut=None):
+    if volunteer is not None:
+        schema += f"""
+    Current Volunteer Context (use this when the user asks about "my" or "my tasks"):
+    - id: {volunteer.id}
+    - phone: {volunteer.phone}
+    - name: {getattr(volunteer, 'name', 'Unknown') or 'Unknown'}
+    - booth_id: {getattr(volunteer, 'booth_id', 'Unknown') or 'Unknown'}
+    """
+
+    return schema
+
+def ask_election_question(question=None, shortcut=None, volunteer=None):
     # 1. Handle conversational greetings
     if question and not shortcut and _is_conversational(question):
         try:
@@ -79,7 +95,7 @@ def ask_election_question(question=None, shortcut=None):
             }
 
     # 2. Generate SQL
-    schema = get_sqlite_schema()
+    schema = get_sqlite_schema(volunteer)
     try:
         sql_query = ollama_client.generate_sql(schema, question)
     except Exception as e:
@@ -101,6 +117,11 @@ def ask_election_question(question=None, shortcut=None):
                 "write/destructive operation."
             ),
         }
+
+    # 3b. Strip parameter placeholders the LLM may have generated
+    sql_query = re.sub(r'=\s*\?', 'IS NOT NULL', sql_query)
+    sql_query = re.sub(r'IN\s*\(\s*\?\s*\)', 'IS NOT NULL', sql_query)
+    sql_query = sql_query.replace('?', '')
 
     # 4. Execute query against SQLite
     data = []
