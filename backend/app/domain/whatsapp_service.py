@@ -461,13 +461,27 @@ async def receive_whatsapp_message(request: Request):
                     region = data.get("region", "")
                     block = data.get("block", "")
                     
-                    volunteer = Volunteer(
-                        phone=from_number,
-                        name=name,
-                        booth_id=None,  # Not using booth_id if we only ask pincode
-                        status="active",
-                    )
-                    session.add(volunteer)
+                    volunteer = session.exec(select(Volunteer).where(Volunteer.phone == from_number)).first()
+                    if not volunteer:
+                        volunteer = Volunteer(
+                            phone=from_number,
+                            booth_id=None,
+                            status="active",
+                        )
+                        session.add(volunteer)
+                    
+                    volunteer.name = name
+                    volunteer.pincode = pincode
+                    volunteer.address = address
+                    volunteer.aadhar = aadhar
+                    volunteer.area_name = area_name
+                    volunteer.block = block
+                    volunteer.district = district_name
+                    volunteer.division = division
+                    volunteer.region = region
+                    volunteer.circle = circle
+                    volunteer.state = state_name
+
                     session.delete(state)
                     session.commit()
                     

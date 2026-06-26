@@ -300,6 +300,9 @@ function FieldStaff({ boothId }) {
                 <tr>
                   <th>Name</th>
                   <th>Phone</th>
+                  <th>Pincode</th>
+                  <th>Aadhar</th>
+                  <th>Address</th>
                   <th>Status</th>
                   <th>Assigned</th>
                   <th>Completed</th>
@@ -311,9 +314,15 @@ function FieldStaff({ boothId }) {
                   <tr key={v.id}>
                     <td style={{ fontWeight: 700 }}>{v.name || '—'}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{maskPhone(v.phone)}</td>
+                    <td style={{ fontSize: 12, fontWeight: 600 }}>{v.pincode || '—'}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--gray-500)' }}>{v.aadhar ? `****${v.aadhar.slice(-4)}` : '—'}</td>
+                    <td style={{ fontSize: 11, color: 'var(--gray-500)', maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={v.address || ''}>
+                      {v.address || (v.district ? `${v.district}, ${v.state}` : '—')}
+                    </td>
                     <td><span className={`pill ${v.status === 'active' ? 'pill-live' : 'pill-blue'}`}>{v.status}</span></td>
                     <td style={{ textAlign: 'center' }}>{v.assigned_tasks}</td>
                     <td style={{ textAlign: 'center' }}>{v.completed_tasks}</td>
+                    <td style={{ fontSize: 11, color: 'var(--gray-500)' }}>{formatDateTime(v.registered_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -345,8 +354,12 @@ function VolunteerManagement({ boothId }) {
   const [proofTaskId, setProofTaskId] = useState(null);
 
   // Register volunteer
+  // Register volunteer
   const [registerName, setRegisterName] = useState('');
   const [registerPhone, setRegisterPhone] = useState('');
+  const [registerPincode, setRegisterPincode] = useState('');
+  const [registerAddress, setRegisterAddress] = useState('');
+  const [registerAadhar, setRegisterAadhar] = useState('');
   const [registering, setRegistering] = useState(false);
   const [registerResult, setRegisterResult] = useState(null);
 
@@ -449,6 +462,16 @@ function VolunteerManagement({ boothId }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!registerName.trim() || !registerPhone.trim()) return;
+    
+    if (registerPincode.trim() && !/^\d{6}$/.test(registerPincode.trim())) {
+      setRegisterResult({ ok: false, msg: 'Pincode must be exactly 6 digits.' });
+      return;
+    }
+    if (registerAadhar.trim() && !/^\d{12}$/.test(registerAadhar.trim())) {
+      setRegisterResult({ ok: false, msg: 'Aadhar must be exactly 12 digits.' });
+      return;
+    }
+
     setRegistering(true);
     setRegisterResult(null);
     try {
@@ -462,6 +485,9 @@ function VolunteerManagement({ boothId }) {
           phone: registerPhone.trim(),
           name: registerName.trim(),
           booth_id: boothId,
+          pincode: registerPincode.trim() || null,
+          address: registerAddress.trim() || null,
+          aadhar: registerAadhar.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -471,6 +497,9 @@ function VolunteerManagement({ boothId }) {
       setRegisterResult({ ok: true, msg: '✅ Volunteer registered! Verification soon.' });
       setRegisterName('');
       setRegisterPhone('');
+      setRegisterPincode('');
+      setRegisterAddress('');
+      setRegisterAadhar('');
       setTimeout(fetchAll, 600);
     } catch (err) {
       setRegisterResult({ ok: false, msg: err.message });
@@ -723,6 +752,9 @@ function VolunteerManagement({ boothId }) {
                   </th>
                   <th>Name</th>
                   <th>Phone</th>
+                  <th>Pincode</th>
+                  <th>Aadhar</th>
+                  <th>Address</th>
                   <th>Status</th>
                   <th>Assigned</th>
                   <th>Completed</th>
@@ -741,6 +773,11 @@ function VolunteerManagement({ boothId }) {
                     </td>
                     <td style={{ fontWeight: 700 }}>{v.name || '—'}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{maskPhone(v.phone)}</td>
+                    <td style={{ fontSize: 12, fontWeight: 600 }}>{v.pincode || '—'}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--gray-500)' }}>{v.aadhar ? `****${v.aadhar.slice(-4)}` : '—'}</td>
+                    <td style={{ fontSize: 11, color: 'var(--gray-500)', maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={v.address || ''}>
+                      {v.address || (v.district ? `${v.district}, ${v.state}` : '—')}
+                    </td>
                     <td><span className={`pill ${v.status === 'active' ? 'pill-live' : 'pill-blue'}`}>{v.status}</span></td>
                     <td style={{ textAlign: 'center' }}>{v.assigned_tasks}</td>
                     <td style={{ textAlign: 'center' }}>{v.completed_tasks}</td>
@@ -789,6 +826,38 @@ function VolunteerManagement({ boothId }) {
                     style={inputStyle}
                   />
                 </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle}>Pincode</label>
+                  <input
+                    type="text"
+                    value={registerPincode}
+                    onChange={e => setRegisterPincode(e.target.value)}
+                    placeholder="6-digit pincode"
+                    style={inputStyle}
+                    maxLength="6"
+                  />
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle}>Address (House/Flat, Street)</label>
+                  <input
+                    type="text"
+                    value={registerAddress}
+                    onChange={e => setRegisterAddress(e.target.value)}
+                    placeholder="Full address details"
+                    style={inputStyle}
+                  />
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle}>Aadhar Number</label>
+                  <input
+                    type="text"
+                    value={registerAadhar}
+                    onChange={e => setRegisterAadhar(e.target.value)}
+                    placeholder="12-digit Aadhar"
+                    style={inputStyle}
+                    maxLength="12"
+                  />
+                </div>
                 <div style={{ marginBottom: 16, fontSize: 11, color: 'var(--gray-400)', fontWeight: 600 }}>
                   Booth: {boothId || 'Not assigned'}
                 </div>
@@ -814,18 +883,18 @@ function VolunteerManagement({ boothId }) {
             </div>
           </div>
 
-          <div className="dash-section">
+           <div className="dash-section">
             <div className="dash-section-head"><h3>Batch Upload</h3></div>
             <div className="dash-section-body" style={{ textAlign: 'center', padding: '40px 24px' }}>
                <div style={{ fontSize: 40, marginBottom: 16 }}>📄</div>
                <h4 style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Bulk Import Volunteers</h4>
                <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 20 }}>
-                 Upload an Excel or CSV file with <strong>Name</strong> and <strong>Phone</strong> columns.
+                 Upload a JSON file containing a list of volunteers with <strong>name</strong> and <strong>phone</strong> fields.
                </p>
                <input 
                  type="file" 
                  id="vol-batch" 
-                 accept=".xlsx" 
+                 accept=".json" 
                  onChange={handleVolunteerUpload} 
                  style={{ display: 'none' }} 
                />
@@ -835,7 +904,7 @@ function VolunteerManagement({ boothId }) {
                 style={{ width: '100%', justifyContent: 'center' }}
                 onClick={() => document.getElementById('vol-batch').click()}
                >
-                 {uploadingVolunteers ? 'IMPORTING...' : 'SELECT EXCEL FILE (.xlsx)'}
+                 {uploadingVolunteers ? 'IMPORTING...' : 'SELECT JSON FILE (.json)'}
                </button>
             </div>
           </div>

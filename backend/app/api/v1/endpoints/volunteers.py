@@ -32,6 +32,9 @@ class VolunteerCreateRequest(BaseModel):
     phone: str
     name: str
     booth_id: str
+    pincode: Optional[str] = None
+    address: Optional[str] = None
+    aadhar: Optional[str] = None
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────
@@ -42,17 +45,33 @@ def get_volunteer_stats(
     session: Session = Depends(get_session),
 ):
     """Return aggregate volunteer and task statistics, optionally filtered by booth."""
+    from sqlmodel import or_
+    import os, json
+
     # Total volunteers
     q_total = select(func.count(Volunteer.id))
     if booth_id:
-        q_total = q_total.where(Volunteer.booth_id == booth_id)
+        q_total = q_total.where(or_(Volunteer.booth_id == booth_id, Volunteer.booth_id == None))
     total_volunteers = session.exec(q_total).one() or 0
 
     # Active volunteers
     q_active = select(func.count(Volunteer.id)).where(Volunteer.status == "active")
     if booth_id:
-        q_active = q_active.where(Volunteer.booth_id == booth_id)
+        q_active = q_active.where(or_(Volunteer.booth_id == booth_id, Volunteer.booth_id == None))
     active_volunteers = session.exec(q_active).one() or 0
+
+    # Include JSON-only volunteers
+    json_path = os.path.join("data", "uploads", "volunteers.json")
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                json_vols = json.load(f)
+                seen_phones = {v.phone for v in session.exec(select(Volunteer)).all()}
+                extra_count = len({jv["phone"] for jv in json_vols if jv.get("phone") and jv["phone"] not in seen_phones})
+                total_volunteers += extra_count
+                active_volunteers += extra_count
+        except Exception:
+            pass
 
     # Assigned tasks
     q_assigned = select(func.count(Task.id)).where(Task.status == "assigned")
@@ -87,16 +106,36 @@ def list_volunteers(
     status_filter: Optional[str] = Query(None, alias="status"),
     session: Session = Depends(get_session),
 ):
-    """List volunteers with per-volunteer task counts, optionally filtered."""
+    """List volunteers with per-volunteer task counts and enriched JSON data."""
+    import json
+    import os
+    from sqlmodel import or_
+    
     query = select(Volunteer)
     if booth_id:
-        query = query.where(Volunteer.booth_id == booth_id)
+        query = query.where(or_(Volunteer.booth_id == booth_id, Volunteer.booth_id == None))
     if status_filter:
         query = query.where(Volunteer.status == status_filter)
     volunteers = session.exec(query).all()
 
+    # Load extra data from volunteers.json
+    extra_data = {}
+    json_path = os.path.join("data", "uploads", "volunteers.json")
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                json_vols = json.load(f)
+                for jv in json_vols:
+                    phone = jv.get("phone")
+                    if phone:
+                        extra_data[phone] = jv
+        except Exception as e:
+            logger.error(f"Failed to read volunteers.json: {e}")
+
+    seen_phones = set()
     result = []
     for vol in volunteers:
+        seen_phones.add(vol.phone)
         assigned = session.exec(
             select(func.count(Task.id)).where(
                 Task.volunteer_id == vol.id, Task.status == "assigned"
@@ -107,6 +146,9 @@ def list_volunteers(
                 Task.volunteer_id == vol.id, Task.status == "completed"
             )
         ).one() or 0
+        
+        v_extra = extra_data.get(vol.phone, {})
+        
         result.append({
             "id": vol.id,
             "phone": vol.phone,
@@ -118,7 +160,32 @@ def list_volunteers(
             ),
             "assigned_tasks": assigned,
             "completed_tasks": completed,
+            "pincode": v_extra.get("pincode", ""),
+            "aadhar": v_extra.get("aadhar", ""),
+            "address": v_extra.get("address", ""),
+            "district": v_extra.get("district", ""),
+            "state": v_extra.get("state", ""),
         })
+
+    # Add volunteers from JSON that are not in the DB
+    # We will use negative IDs to avoid collision with real DB ids
+    for i, (phone, v_extra) in enumerate(extra_data.items(), start=1):
+        if phone not in seen_phones:
+            result.append({
+                "id": -i,
+                "phone": phone,
+                "name": v_extra.get("name", "Unknown"),
+                "booth_id": None,
+                "status": "active",
+                "registered_at": v_extra.get("registered_at"),
+                "assigned_tasks": 0,
+                "completed_tasks": 0,
+                "pincode": v_extra.get("pincode", ""),
+                "aadhar": v_extra.get("aadhar", ""),
+                "address": v_extra.get("address", ""),
+                "district": v_extra.get("district", ""),
+                "state": v_extra.get("state", ""),
+            })
 
     return result
 
@@ -163,15 +230,81 @@ async def create_volunteer(
             detail="A volunteer with this phone number already exists.",
         )
 
+    import httpx
+    import json
+    import os
+    from datetime import datetime, timezone
+    
+    # Resolve Pincode
+    state_name, district_name, area_name, circle, division, region, block = "", "", "", "", "", "", ""
+    if body.pincode:
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"https://api.postalpincode.in/pincode/{body.pincode}", timeout=5.0)
+                if res.status_code == 200:
+                    data = res.json()
+                    if isinstance(data, list) and len(data) > 0 and data[0].get("Status") == "Success":
+                        post_office = data[0].get("PostOffice", [])[0]
+                        state_name = post_office.get("State", "")
+                        district_name = post_office.get("District", "")
+                        area_name = post_office.get("Name", "")
+                        circle = post_office.get("Circle", "")
+                        division = post_office.get("Division", "")
+                        region = post_office.get("Region", "")
+                        block = post_office.get("Block", "")
+        except Exception as e:
+            logger.error(f"Error validating pincode in create_volunteer: {e}")
+
     volunteer = Volunteer(
         phone=phone,
         name=body.name.strip(),
         booth_id=body.booth_id,
         status="active",
+        pincode=body.pincode,
+        address=body.address,
+        aadhar=body.aadhar,
+        area_name=area_name,
+        block=block,
+        district=district_name,
+        division=division,
+        region=region,
+        circle=circle,
+        state=state_name
     )
     session.add(volunteer)
     session.commit()
     session.refresh(volunteer)
+    
+    # Save to volunteers.json
+    try:
+        json_path = os.path.join("data", "uploads", "volunteers.json")
+        os.makedirs(os.path.dirname(json_path), exist_ok=True)
+        vol_data = []
+        if os.path.exists(json_path):
+            with open(json_path, "r") as f:
+                try:
+                    vol_data = json.load(f)
+                except json.JSONDecodeError:
+                    pass
+        vol_data.append({
+            "phone": phone,
+            "name": body.name.strip(),
+            "address": body.address,
+            "pincode": body.pincode,
+            "area_name": area_name,
+            "block": block,
+            "district": district_name,
+            "division": division,
+            "region": region,
+            "circle": circle,
+            "state": state_name,
+            "aadhar": body.aadhar,
+            "registered_at": datetime.now(timezone.utc).isoformat()
+        })
+        with open(json_path, "w") as f:
+            json.dump(vol_data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save volunteer to JSON: {e}")
 
     try:
         await send_text(
@@ -199,36 +332,24 @@ async def upload_volunteers(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Batch register volunteers from an Excel (.xlsx) file.
-    Backend converts the Excel data to JSON and then processes it.
-    Expected columns: Name, Phone.
+    """Batch register volunteers from a JSON file.
+    Expected format: list of objects with 'name' and 'phone'.
     """
-    import openpyxl
     import json
-    import io
     import re
     
     contents = await file.read()
     
     # Check extension
     filename = file.filename.lower()
-    if not filename.endswith('.xlsx'):
-        raise HTTPException(status_code=400, detail="Only .xlsx (Excel) files are supported.")
+    if not filename.endswith('.json'):
+        raise HTTPException(status_code=400, detail="Only .json files are supported.")
 
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
-        sheet = wb.active
-        
-        # Step 1: Convert Excel to JSON-like list of dicts
-        headers = [cell.value for cell in sheet[1]]
-        data_json = []
-        for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), 2):
-            row_dict = {}
-            for col_idx, cell_value in enumerate(row):
-                if col_idx < len(headers) and headers[col_idx]:
-                    row_dict[str(headers[col_idx]).strip().lower()] = cell_value
-            data_json.append(row_dict)
-        
+        data_json = json.loads(contents)
+        if not isinstance(data_json, list):
+            raise HTTPException(status_code=400, detail="JSON must be an array of objects.")
+            
         # Step 2: Process the JSON data
         added = 0
         errors = []

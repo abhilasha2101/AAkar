@@ -15,6 +15,18 @@ class Volunteer(SQLModel, table=True):
     status: str = Field(default="pending")  # "pending" | "active"
     registered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    # Extended registration details
+    pincode: Optional[str] = None
+    address: Optional[str] = None
+    aadhar: Optional[str] = None
+    area_name: Optional[str] = None
+    block: Optional[str] = None
+    district: Optional[str] = None
+    division: Optional[str] = None
+    region: Optional[str] = None
+    circle: Optional[str] = None
+    state: Optional[str] = None
+
 
 class Task(SQLModel, table=True):
     """Represents a task assigned to a volunteer."""
