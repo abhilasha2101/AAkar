@@ -284,11 +284,31 @@ def end_call(
 
 @router.get("/history")
 def get_call_history(
-    limit: int = 20,
+    page: int = 1,
+    page_size: int = 10,
     current_user: User = Depends(get_current_user),
 ):
-    """Return past calls for the current user (as initiator or participant)."""
+    """Return past calls for the current user (as initiator or participant), paginated."""
     try:
+        # Total count
+        count_result = neo4j_client.run_query(
+            """
+            MATCH (c:CallLog)
+            WHERE c.initiator_id = $user_id
+               OR $user_id_str IN split(c.participant_ids, ',')
+            RETURN count(c) AS total
+            """,
+            {
+                "user_id": current_user.id,
+                "user_id_str": str(current_user.id),
+            },
+        )
+        total = count_result[0]["total"] if count_result else 0
+        pages = max(1, (total + page_size - 1) // page_size)
+        page = max(1, min(page, pages))
+        skip = (page - 1) * page_size
+
+        # Paginated results
         result = neo4j_client.run_query(
             f"""
             MATCH (c:CallLog)
@@ -296,14 +316,43 @@ def get_call_history(
                OR $user_id_str IN split(c.participant_ids, ',')
             RETURN {_CALL_LOG_PROPS}
             ORDER BY c.started_at DESC
-            LIMIT $limit
+            SKIP $skip
+            LIMIT $page_size
             """,
             {
                 "user_id": current_user.id,
                 "user_id_str": str(current_user.id),
-                "limit": limit,
+                "skip": skip,
+                "page_size": page_size,
             },
         )
-        return result
+        return {
+            "items": result,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/history")
+def delete_call_history(current_user: User = Depends(get_current_user)):
+    """Delete all call history for the current user."""
+    try:
+        neo4j_client.run_query(
+            """
+            MATCH (c:CallLog)
+            WHERE c.initiator_id = $user_id
+               OR $user_id_str IN split(c.participant_ids, ',')
+            DELETE c
+            """,
+            {
+                "user_id": current_user.id,
+                "user_id_str": str(current_user.id),
+            },
+        )
+        return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

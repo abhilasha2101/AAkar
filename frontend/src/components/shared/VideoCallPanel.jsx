@@ -26,6 +26,10 @@ export default function VideoCallPanel({ hierarchy, userRole }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
 
+  const HISTORY_PAGE_SIZE = 10;
+  const [callPage, setCallPage] = useState(1);
+  const [callTotalPages, setCallTotalPages] = useState(1);
+
   const fetchSubordinates = async () => {
     try {
       const res = await fetch('/api/v1/video-calls/subordinates', { headers: headers() });
@@ -44,12 +48,23 @@ export default function VideoCallPanel({ hierarchy, userRole }) {
     } catch (e) { console.error(e); }
   };
 
-  const fetchCallHistory = async () => {
+  const fetchCallHistory = async (p = callPage) => {
     try {
-      const res = await fetch('/api/v1/video-calls/history', { headers: headers() });
+      const res = await fetch(`/api/v1/video-calls/history?page=${p}&page_size=${HISTORY_PAGE_SIZE}`, { headers: headers() });
       if (!res.ok) return;
       const data = await res.json();
-      setCallHistory(Array.isArray(data) ? data : []);
+      setCallHistory(Array.isArray(data.items) ? data.items : []);
+      setCallTotalPages(data.pages || 1);
+      setCallPage(data.page || 1);
+    } catch (e) { console.error(e); }
+  };
+
+  const deleteHistory = async () => {
+    try {
+      await fetch('/api/v1/video-calls/history', { method: 'DELETE', headers: headers() });
+      setCallHistory([]);
+      setCallPage(1);
+      setCallTotalPages(1);
     } catch (e) { console.error(e); }
   };
 
@@ -259,49 +274,81 @@ export default function VideoCallPanel({ hierarchy, userRole }) {
 
         {/* Call History */}
         <div className="dash-section">
-          <div className="dash-section-head"><h3>Call History</h3></div>
+          <div className="dash-section-head">
+            <h3>Call History</h3>
+            {callHistory.length > 0 && (
+              <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: '#dc2626' }} onClick={deleteHistory}>
+                CLEAR
+              </button>
+            )}
+          </div>
           <div className="dash-section-body" style={{ padding: 0 }}>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Initiator</th>
-                  <th>Date</th>
-                  <th>Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                {callHistory.map(call => (
-                  <tr key={call.room_name}>
-                    <td>
-                      <div style={{ fontWeight: 700, color: 'var(--navy-900)' }}>
-                        {call.initiator_name}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>
-                        {call.initiator_role.replace('_', ' ')}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{new Date(call.started_at).toLocaleDateString()}</div>
-                      <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>{new Date(call.started_at).toLocaleTimeString()}</div>
-                    </td>
-                    <td>
-                      {call.status === 'active' ? (
-                        <span style={{ color: '#059669', fontWeight: 800, fontSize: 11 }}>IN PROGRESS</span>
-                      ) : (
-                        <span style={{ fontWeight: 600 }}>{Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {callHistory.length === 0 && (
+            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+              <table className="admin-table">
+                <thead>
                   <tr>
-                    <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: 'var(--gray-400)' }}>
-                      No call history found
-                    </td>
+                    <th>Initiator</th>
+                    <th>Date</th>
+                    <th>Duration</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {callHistory.map(call => (
+                    <tr key={call.room_name}>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--navy-900)' }}>
+                          {call.initiator_name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>
+                          {call.initiator_role.replace('_', ' ')}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{new Date(call.started_at).toLocaleDateString()}</div>
+                        <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>{new Date(call.started_at).toLocaleTimeString()}</div>
+                      </td>
+                      <td>
+                        {call.status === 'active' ? (
+                          <span style={{ color: '#059669', fontWeight: 800, fontSize: 11 }}>IN PROGRESS</span>
+                        ) : (
+                          <span style={{ fontWeight: 600 }}>{Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {callHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: 'var(--gray-400)' }}>
+                        No call history found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {callTotalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '10px 0', borderTop: '1px solid var(--gray-200)' }}>
+                <button
+                  className="btn"
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                  disabled={callPage <= 1}
+                  onClick={() => fetchCallHistory(callPage - 1)}
+                >
+                  ‹ PREV
+                </button>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)' }}>
+                  Page {callPage} of {callTotalPages}
+                </span>
+                <button
+                  className="btn"
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                  disabled={callPage >= callTotalPages}
+                  onClick={() => fetchCallHistory(callPage + 1)}
+                >
+                  NEXT ›
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
