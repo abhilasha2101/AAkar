@@ -1,0 +1,108 @@
+[
+  {
+    "complaint_id": 1001,
+    "timestamp": "2026-06-28T03:23:17.555370",
+    "booth_id": "MH_201_003",
+    "phone": "919999999990",
+    "type": "Water",
+    "status": "Open",
+    "description": "No water supply in my lane for 2 days."
+  },
+  {
+    "complaint_id": 1002,
+    "timestamp": "2026-06-28T03:23:18.138002",
+    "booth_id": "MH_201_003",
+    "phone": "919999999991",
+    "type": "Electricity",
+    "status": "Open",
+    "description": "Frequent power cuts during the night."
+  },
+  {
+    "complaint_id": 1003,
+    "timestamp": "2026-06-28T03:23:18.456280",
+    "booth_id": "MH_201_003",
+    "phone": "919999999992",
+    "type": "Road",
+    "status": "Open",
+    "description": "Large pothole in front of the main society gate."
+  },
+  {
+    "complaint_id": 1004,
+    "timestamp": "2026-06-28T03:23:18.744208",
+    "booth_id": "MH_201_003",
+    "phone": "919999999993",
+    "type": "Sanitation",
+    "status": "Open",
+    "description": "Garbage hasn't been picked up all week."
+  },
+  {
+    "complaint_id": 1005,
+    "timestamp": "2026-06-28T03:23:19.049582",
+    "booth_id": "MH_201_003",
+    "phone": "919999999994",
+    "type": "Security",
+    "status": "Open",
+    "description": "Street lights are broken, feels unsafe."
+  },
+  {
+    "complaint_id": 1006,
+    "timestamp": "2026-06-28T03:30:32.506136",
+    "booth_id": "",
+    "aadhar": "895526665163",
+    "pincode": "400001",
+    "phone": "919872734913",
+    "type": "water",
+    "status": "Open",
+    "description": "in west delhi there is water shortage"
+  },
+  {
+    "complaint_id": 1007,
+    "timestamp": "2026-06-28T03:40:22.709046",
+    "booth_id": "",
+    "aadhar": "895526665163",
+    "pincode": "400001",
+    "phone": "919872734913",
+    "type": "electricity",
+    "status": "Open",
+    "description": "bijli nai aa rehi",
+    "location": "Lat: 12.9204224, Lng: 77.545472 (Simulated GPS Location)"
+  },
+  {
+    "complaint_id": 1008,
+    "timestamp": "2026-06-28T03:44:24.735583",
+    "booth_id": "",
+    "aadhar": "895526665163",
+    "pincode": "400001",
+    "phone": "919872734913",
+    "type": "raod",
+    "status": "Open",
+    "description": "road not good",
+    "location": "Lat: 12.9204224, Lng: 77.545472 (Simulated GPS Location)"
+  },
+  {
+    "complaint_id": 1009,
+    "timestamp": "2026-06-28T03:47:41.424234",
+    "booth_id": "",
+    "aadhar": "895526665163",
+    "pincode": "400001",
+    "phone": "919872734913",
+    "type": "road",
+    "status": "Open",
+    "description": "road is not good",
+    "location": "Lat: 12.9204224, Lng: 77.545472 (Simulated GPS Location)",
+    "image_path": "data/uploads/complaints/062b5725-0358-4223-9460-f7286ee29ade.jpg"
+  },
+  {
+    "complaint_id": 1010,
+    "timestamp": "2026-06-28T03:51:20.374092",
+    "booth_id": "",
+    "aadhar": "895526665163",
+    "pincode": "400001",
+    "phone": "919872734913",
+    "type": "water",
+    "status": "Open",
+    "description": "no water",
+    "location": "Lat: 12.9204224, Lng: 77.545472 (Simulated GPS Location)",
+    "image_path": "data/uploads/complaints/8c35fe78-59ac-4098-bbe2-cd5ab5b9a221.jpg"
+  }
+]

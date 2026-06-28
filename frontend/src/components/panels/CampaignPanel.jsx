@@ -1,7 +1,7 @@
 'use client';
  
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import 'leaflet/dist/leaflet.css';
 
 import {
@@ -19,15 +19,15 @@ import {
   apiUpdateLocation,
   buildCovMap,
   isPointInGeometry
-} from './campaign/campaignUtils';
+} from '../campaign/campaignUtils';
 
-import CampaignStats from './campaign/CampaignStats';
-import DistrictSelector from './campaign/DistrictSelector';
-import ConstituencyFilter from './campaign/ConstituencyFilter';
-import WardSelector from './campaign/WardSelector';
-import VolunteerList from './campaign/VolunteerList';
-import CoverageTable from './campaign/CoverageTable';
-import CampaignMap from './campaign/CampaignMap';
+import CampaignStats from '../campaign/CampaignStats';
+import DistrictSelector from '../campaign/DistrictSelector';
+import ConstituencyFilter from '../campaign/ConstituencyFilter';
+import WardSelector from '../campaign/WardSelector';
+import VolunteerList from '../campaign/VolunteerList';
+import CoverageTable from '../campaign/CoverageTable';
+import CampaignMap from '../campaign/CampaignMap';
 
 const API = '/api/v1';
 

@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 
-const CampaignPanel = dynamic(() => import('../../../components/CampaignPanel'), {
+const CampaignPanel = dynamic(() => import('../../../components/panels/CampaignPanel'), {
   ssr: false,
   loading: () => (
     <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'sans-serif' }}>

@@ -6,7 +6,7 @@ import Hub from '../shared/Hub';
 import VideoCallPanel from '../shared/VideoCallPanel';
 import dynamic from 'next/dynamic';
 
-const CampaignPanel = dynamic(() => import('../CampaignPanel'), {
+const CampaignPanel = dynamic(() => import('../panels/CampaignPanel'), {
   ssr: false,
   loading: () => (
     <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'sans-serif' }}>

@@ -52,6 +52,8 @@ from app.infrastructure.db.sqlite_client import engine
 from app.domain.models.hierarchy import HierarchyNode
 from app.domain.models.volunteer import Volunteer, Task, ConversationState
 from app.domain.services.ask_election_service import ask_election_question
+import app.domain.services.whatsapp_service as ws_service
+from app.domain.services.whatsapp_service import send_text, send_template, download_media
 
 logger = logging.getLogger(__name__)
 
@@ -63,111 +65,6 @@ VERIFY_TOKEN = settings.WHATSAPP_VERIFY_TOKEN
 
 GRAPH_API_URL = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
 
-# Simulation mode: when token is dummy, buffer replies for the simulator endpoint
-_simulated_replies: list[str] = []
-_sim_media_bytes: bytes | None = None
-_IS_SIMULATION = WHATSAPP_TOKEN in ("dummy_token", "", "your_meta_whatsapp_access_token")
-
-
-# ---------------------------------------------------------------------------
-# REGISTRATION HELPERS
-# ---------------------------------------------------------------------------
-
-
-def _parse_choice(text: str, nodes: list[HierarchyNode]) -> int | None:
-    try:
-        choice = int(text.strip())
-        if 1 <= choice <= len(nodes):
-            return choice
-    except (ValueError, AttributeError):
-        pass
-        
-    text_lower = text.strip().lower()
-    for i, node in enumerate(nodes, 1):
-        if node.name.lower() == text_lower:
-            return i
-            
-    return None
-
-
-def _get_children_by_code(
-    session: Session, parent_code: str, parent_level: str, child_level: str
-) -> list[HierarchyNode]:
-    parent = session.exec(
-        select(HierarchyNode).where(
-            HierarchyNode.code == parent_code,
-            HierarchyNode.level == parent_level,
-        )
-    ).first()
-    if not parent:
-        return []
-    return session.exec(
-        select(HierarchyNode).where(
-            HierarchyNode.parent_id == parent.id,
-            HierarchyNode.level == child_level,
-        )
-    ).all()
-
-
-def _format_numbered_list(nodes: list[HierarchyNode], show_code: bool = False) -> str:
-    return "\n".join(
-        f"{i}) {n.name}" + (f" ({n.code})" if show_code else "")
-        for i, n in enumerate(nodes, 1)
-    )
-
-
-# ---------------------------------------------------------------------------
-# SENDING MESSAGES
-# ---------------------------------------------------------------------------
-
-async def send_text(to: str, message: str) -> dict:
-    """
-    Sends a free-form text message. In simulation mode (dummy token),
-    buffers the reply for the /simulate endpoint instead of calling Meta.
-    """
-    if _IS_SIMULATION:
-        _simulated_replies.append(message)
-        return {"status": "simulated", "to": to, "message": message}
-
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "text",
-        "text": {"body": message},
-    }
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(GRAPH_API_URL, headers=headers, json=payload)
-    if resp.status_code != 200:
-        # Don't let a WhatsApp failure crash the whole request - log and surface clearly
-        raise HTTPException(status_code=502, detail=f"WhatsApp send failed: {resp.text}")
-    return resp.json()
-
-
-async def send_template(to: str, template_name: str, lang_code: str = "en_US") -> dict:
-    """
-    Sends a pre-approved template message. Use this for the very FIRST
-    message to someone (before they've messaged you), e.g. 'hello_world'
-    which Meta gives you by default for testing.
-    """
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "template",
-        "template": {"name": template_name, "language": {"code": lang_code}},
-    }
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(GRAPH_API_URL, headers=headers, json=payload)
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"WhatsApp template send failed: {resp.text}")
-    return resp.json()
 
 
 # ---------------------------------------------------------------------------
@@ -182,14 +79,13 @@ async def simulate_whatsapp(body: dict, _user=Depends(get_current_user)):
     Accepts { phone, message } for text, or { phone, is_image: true, image_data: "<base64>" }
     for image uploads. Processes through the same webhook logic and returns the bot's replies.
     """
-    global _simulated_replies, _sim_media_bytes
-    _simulated_replies = []
-    _sim_media_bytes = None
+    ws_service._simulated_replies = []
+    ws_service.ws_service._sim_media_bytes = None
 
     phone = body.get("phone", "917696138229")
 
     if body.get("is_image") and body.get("image_data"):
-        _sim_media_bytes = base64.b64decode(body["image_data"])
+        ws_service._sim_media_bytes = base64.b64decode(body["image_data"])
         mock_payload = {
             "entry": [{
                 "changes": [{
@@ -244,8 +140,8 @@ async def simulate_whatsapp(body: dict, _user=Depends(get_current_user)):
 
     await receive_whatsapp_message(_MockRequest())
 
-    replies = list(_simulated_replies)
-    _simulated_replies = []
+    replies = list(ws_service._simulated_replies)
+    ws_service._simulated_replies = []
     
     with Session(engine) as session:
         state_record = session.exec(
@@ -290,36 +186,6 @@ async def verify_webhook(
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse(content=hub_challenge)
     raise HTTPException(status_code=403, detail="Verification failed")
-
-
-# ---------------------------------------------------------------------------
-# MEDIA DOWNLOAD HELPER
-# ---------------------------------------------------------------------------
-
-async def download_media(media_id: str) -> bytes:
-    """Download media from WhatsApp via the Meta Graph API."""
-    global _sim_media_bytes
-    if _IS_SIMULATION and _sim_media_bytes is not None:
-        data = _sim_media_bytes
-        _sim_media_bytes = None
-        return data
-
-    async with httpx.AsyncClient() as client:
-        # Step 1: Get the download URL from the media ID
-        resp = await client.get(
-            f"https://graph.facebook.com/v20.0/{media_id}",
-            headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
-        )
-        resp.raise_for_status()
-        download_url = resp.json()["url"]
-
-        # Step 2: Download the actual binary
-        media_resp = await client.get(
-            download_url,
-            headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
-        )
-        media_resp.raise_for_status()
-        return media_resp.content
 
 
 # ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ from app.core.security import get_current_user
 from app.domain.models.hierarchy import HierarchyNode
 from app.domain.models.user import User
 from app.domain.models.volunteer import Volunteer, Task
-from app.domain.whatsapp_service import send_text
+from app.domain.services.whatsapp_service import send_text
 from app.infrastructure.db.sqlite_client import get_session
 
 logger = logging.getLogger(__name__)

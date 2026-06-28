@@ -10,8 +10,7 @@ from pydantic import BaseModel
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-
-from app.infrastructure.sms_service import send_sms, notify_by_doc_id
+from app.infrastructure.communications.sms_service import send_sms, notify_by_doc_id
 from app.infrastructure.db.neo4j_client import neo4j_client
 
 router = APIRouter()

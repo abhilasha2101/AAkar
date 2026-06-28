@@ -13,7 +13,7 @@ from app.api.v1.endpoints.complaints import router as complaints_router
 from app.api.v1.endpoints.drives import router as drives_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.ask_election import router as ask_election_router
-from app.domain.whatsapp_service import router as whatsapp_router
+from app.api.v1.endpoints.whatsapp import router as whatsapp_router
 from app.api.v1.endpoints.volunteers import router as volunteers_router
 from app.api.v1.endpoints.broadcasts import router as broadcasts_router
 from app.api.v1.endpoints.dashboard import router as dashboard_router
