@@ -68,6 +68,20 @@ export default function BroadcastPanel({ hierarchy }) {
     } catch (e) { setError('Network error'); console.error(e); }
   };
 
+  const groupedBroadcasts = (() => {
+    const groups = {};
+    for (const b of broadcasts) {
+      const key = `${b.message || ''}|${b.subject || ''}`;
+      if (!groups[key]) groups[key] = { ...b, recipients: [b], groupCount: 1, groupIds: [b.id] };
+      else {
+        groups[key].recipients.push(b);
+        groups[key].groupCount++;
+        if (b.id) groups[key].groupIds.push(b.id);
+      }
+    }
+    return Object.values(groups);
+  })();
+
   useEffect(() => { fetchSubordinates(); fetchBroadcasts(); }, []);
 
   const toggleRecipient = (id) => {
@@ -224,10 +238,10 @@ export default function BroadcastPanel({ hierarchy }) {
       <div className="dash-section" style={{ borderTop: `3px solid ${GOLD}`, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
         <div className="dash-section-head" style={{ borderBottomColor: '#e4e4e7' }}>
           <h3 style={{ color: NAVY }}>Recent Broadcasts Sent</h3>
-          {broadcasts.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: NAVY_LIGHT }}>{broadcasts.length} TRANSMISSION{broadcasts.length !== 1 ? 'S' : ''}</span>}
+          {groupedBroadcasts.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: NAVY_LIGHT }}>{groupedBroadcasts.length} TRANSMISSION{groupedBroadcasts.length !== 1 ? 'S' : ''}</span>}
         </div>
         <div className="dash-section-body" style={{ padding: 0 }}>
-          {broadcasts.length === 0 ? (
+          {groupedBroadcasts.length === 0 ? (
             <div style={{ padding: 48, textAlign: 'center' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📡</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#a1a1aa' }}>No broadcasts sent</div>
@@ -235,50 +249,60 @@ export default function BroadcastPanel({ hierarchy }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {broadcasts.map((b, i) => {
-                const isExpanded = expandedId === (b.id || i);
-                const recipientLabel = b.recipient_name || `User #${b.recipient_id}`;
-                const hasMedia = parseMediaUrls(b.media_urls).length > 0;
-                const isRead = b.is_read;
+              {groupedBroadcasts.map((g) => {
+                const groupKey = g.groupIds?.[0] || g.recipients[0]?.id || g.groupCount;
+                const isExpanded = expandedId === groupKey;
+                const hasMedia = parseMediaUrls(g.media_urls).length > 0;
+                const unreadCount = g.recipients.filter(r => !r.is_read).length;
                 return (
-                  <div key={b.id || i} style={{
+                  <div key={groupKey} style={{
                     borderLeft: `3px solid ${isExpanded ? GOLD : 'transparent'}`,
                     borderBottom: '1px solid #e4e4e7',
                     background: isExpanded ? '#f8fafc' : '#fff',
                     transition: 'background 0.15s',
                   }}>
-                    <div onClick={() => setExpandedId(isExpanded ? null : (b.id || i))} style={{
+                    <div onClick={() => setExpandedId(isExpanded ? null : groupKey)} style={{
                       display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', cursor: 'pointer',
                     }}>
                       <span style={{ fontSize: 9, color: '#a1a1aa', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
                       <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 3, background: '#eef2ff', color: '#3b82f6', whiteSpace: 'nowrap', letterSpacing: '0.03em' }}>
-                        {b.recipient_role?.replace(/_/g, ' ') || 'BROADCAST'}
+                        {g.recipient_role?.replace(/_/g, ' ') || 'BROADCAST'}
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 3, background: '#f0fdf4', color: '#16a34a', whiteSpace: 'nowrap' }}>
+                        ×{g.groupCount}
                       </span>
                       <span style={{ flex: '1 1 auto', fontWeight: 700, fontSize: 13, color: '#3f3f46', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {b.subject || <span style={{ color: '#a1a1aa', fontStyle: 'italic' }}>No subject</span>}
+                        {g.subject || <span style={{ color: '#a1a1aa', fontStyle: 'italic' }}>No subject</span>}
                       </span>
-                      <MediaThumbnails urls={b.media_urls} compact />
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 3, background: isRead ? '#f0fdf4' : '#fef2f2', color: isRead ? '#16a34a' : '#dc2626', whiteSpace: 'nowrap' }}>
-                        {isRead ? '✓ READ' : '◉ NEW'}
-                      </span>
+                      <MediaThumbnails urls={g.media_urls} compact />
+                      {unreadCount > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 3, background: '#fef2f2', color: '#dc2626', whiteSpace: 'nowrap' }}>
+                          {unreadCount} NEW
+                        </span>
+                      )}
                       <span style={{ flex: '0 0 auto', fontSize: 11, color: '#a1a1aa', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                        {g.created_at ? new Date(g.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
                       </span>
                     </div>
                     {isExpanded && (
                       <div style={{ padding: '0 20px 16px 52px', borderTop: '1px solid #e4e4e7' }}>
                         <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 12, color: '#71717a' }}>
                           <span style={{ fontWeight: 700, color: NAVY_LIGHT }}>TO:</span>
-                          <span style={{ fontWeight: 600 }}>{recipientLabel}</span>
+                          <span style={{ fontWeight: 600 }}>{g.recipients.length} recipient{g.recipients.length !== 1 ? 's' : ''}</span>
                           <span style={{ marginLeft: 'auto', fontWeight: 700, color: NAVY_LIGHT }}>SENT:</span>
-                          <span style={{ fontWeight: 600 }}>{b.created_at ? new Date(b.created_at).toLocaleString('en-IN') : '—'}</span>
-                          <span style={{ fontWeight: 700, color: NAVY_LIGHT }}>STATUS:</span>
-                          <span style={{ fontWeight: 600, color: isRead ? '#16a34a' : '#dc2626' }}>{isRead ? 'Read' : 'Unread'}</span>
+                          <span style={{ fontWeight: 600 }}>{g.created_at ? new Date(g.created_at).toLocaleString('en-IN') : '—'}</span>
+                        </div>
+                        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {g.recipients.map((r, ri) => (
+                            <span key={ri} style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 3, background: r.is_read ? '#f0fdf4' : '#fef2f2', color: r.is_read ? '#16a34a' : '#dc2626' }}>
+                              {r.recipient_name || `User #${r.recipient_id}`} {r.is_read ? '✓' : '◉'}
+                            </span>
+                          ))}
                         </div>
                         <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.7, color: '#3f3f46', whiteSpace: 'pre-wrap', background: '#fff', padding: 14, borderRadius: 6, border: '1px solid #e4e4e7' }}>
-                          {b.message}
+                          {g.message}
                         </div>
-                        <MediaThumbnails urls={b.media_urls} />
+                        <MediaThumbnails urls={g.media_urls} />
                       </div>
                     )}
                   </div>

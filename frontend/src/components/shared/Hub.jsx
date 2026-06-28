@@ -44,6 +44,7 @@ const msgBadge = (dir) => {
   if (dir === 'from_above') return { bg: '#eef2ff', color: '#3b82f6', label: 'From Above' };
   if (dir === 'my_report') return { bg: '#fefce8', color: '#B8860B', label: 'My Report' };
   if (dir === 'from_below') return { bg: '#f0fdf4', color: '#16a34a', label: 'From Below' };
+  if (dir === 'my_broadcast') return { bg: '#f5f3ff', color: '#7c3aed', label: 'My Broadcast' };
   return { bg: '#f5f3ff', color: '#7c3aed', label: 'Message' };
 };
 
@@ -296,7 +297,9 @@ export default function Hub({ hierarchy, userRole }) {
                 const isUnread = m.direction === 'from_above' && !m.is_read;
                 const fromTo = m.direction === 'my_report'
                   ? `To: ${m.recipient_name || `#${m.recipient_id}`}`
-                  : `${m.sender_name || `#${m.sender_id}`}  →  ${m.recipient_name || `#${m.recipient_id}`}`;
+                  : m.direction === 'my_broadcast'
+                    ? `To: Subordinates`
+                    : `${m.sender_name || `#${m.sender_id}`}  →  ${m.recipient_name || `#${m.recipient_id}`}`;
                 const hasMedia = parseMediaUrls(m.media_urls).length > 0;
                 return (
                   <div key={m.id || i} style={{

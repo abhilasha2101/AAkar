@@ -3,8 +3,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import 'leaflet/dist/leaflet.css';
-import HeatmapAnalysis from './dashboards/HeatmapAnalysis';
-
 import {
   DELHI_DISTRICTS,
   CONSTITUENCIES_NEW,
@@ -28,6 +26,8 @@ import ConstituencyFilter from './campaign/ConstituencyFilter';
 import WardSelector from './campaign/WardSelector';
 import VolunteerList from './campaign/VolunteerList';
 import CoverageTable from './campaign/CoverageTable';
+import CampaignCreator from './campaign/CampaignCreator';
+import CampaignMap from './campaign/CampaignMap';
 
 const API = '/api/v1';
 
@@ -115,37 +115,42 @@ const CampaignPanel = () => {
   const [activeTab,          setActiveTab]          = useState('volunteers'); // 'volunteers' | 'coverage' | 'analytics'
   const [newTaskText,        setNewTaskText]        = useState('');
   const [newTaskStatus,      setNewTaskStatus]      = useState('unassigned');
+  const [campaignMode,       setCampaignMode]       = useState(false);
+  const [campaignPin,        setCampaignPin]        = useState(null);
+  const [showCampaignCreator, setShowCampaignCreator] = useState(false);
+  const [activeCampaigns,    setActiveCampaigns]    = useState([]);
+  const [campaignsLoaded,    setCampaignsLoaded]    = useState(false);
+  const [pinModeActive,      setPinModeActive]      = useState(false);
+  const [newVolPin,          setNewVolPin]          = useState(null);
+  const mapRef = useRef(null);
+  const campaignMapWrapperRef = useRef(null);
 
   const CONSTITUENCIES = mode === 'new' || mode === 'blended' || mode === 'abs' ? CONSTITUENCIES_NEW : CONSTITUENCIES_OLD;
 
   // Load GeoJSON
   useEffect(() => {
-    const geojsonMode = mode === 'blended' ? 'new' : mode;
-    fetch(`/delhi_districts_${geojsonMode}.geojson`)
+    fetch('/delhi_districts.geojson')
       .then(r => (r.ok ? r.json() : null))
       .then(setGeojsonData)
       .catch(() => {});
 
-    fetch(`/delhi_constituencies_${geojsonMode}.geojson`)
+    fetch('/delhi_constituencies.geojson')
       .then(r => (r.ok ? r.json() : null))
       .then(setConstitsData)
       .catch(() => {});
 
-    fetch('/delhi_boundary.geojson')
+    fetch('/delhi_mandals.geojson')
       .then(r => (r.ok ? r.json() : null))
       .then(setBoundaryData)
       .catch(() => {});
 
-    fetch('/delhi_wards.geojson')
-      .then(r => (r.ok ? r.json() : null))
-      .then(setWardsData)
-      .catch(() => {});
+    /* delhi_wards.geojson not available */
 
     fetch('/ward_to_constituency.json')
       .then(r => (r.ok ? r.json() : null))
       .then(setWardToConstit)
       .catch(() => {});
-  }, [mode]);
+  }, []);
 
   // URL Sync
   useEffect(() => {
@@ -279,6 +284,55 @@ const CampaignPanel = () => {
     }
   }, [volunteers, mode]);
 
+  // Load active campaigns (scoped to user's area)
+  const loadActiveCampaigns = useCallback(async () => {
+    try {
+      const r = await fetch(`${API}/campaign/campaigns/active`);
+      if (r.ok) {
+        const data = await r.json();
+        setActiveCampaigns(data.campaigns || []);
+      }
+    } catch {}
+    setCampaignsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (campaignsLoaded) return;
+    loadActiveCampaigns();
+  }, [campaignsLoaded, loadActiveCampaigns]);
+
+  const handleCampaignPinDrop = useCallback((location) => {
+    setCampaignPin(location);
+    setShowCampaignCreator(true);
+  }, []);
+
+  const handleCreateVolunteer = useCallback(async (data) => {
+    try {
+      const r = await fetch(`${API}/campaign/volunteers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (r.ok) {
+        const newVol = await r.json();
+        setVolunteers(prev => [...prev, newVol]);
+        return newVol;
+      }
+    } catch (err) {
+      console.error('Failed to create volunteer:', err);
+    }
+  }, []);
+
+  const handleCampaignCreated = useCallback((campaign) => {
+    setActiveCampaigns(prev => [campaign, ...prev]);
+    setCampaignMode(false);
+    setPinModeActive(false);
+    setNewVolPin(null);
+    setCampaignPin(null);
+    // Refresh campaigns from server so subordinates also see it
+    setCampaignsLoaded(false);
+  }, []);
+
   const handleMarkAllCovered = useCallback(async () => {
     if (selectedDistrict) {
       await apiMarkAllCovered(selectedDistrict, currentUser?.name, mode);
@@ -387,15 +441,31 @@ const CampaignPanel = () => {
               ← All Districts
             </button>
           )}
+          <button
+            onClick={() => {
+              setCampaignMode(p => !p);
+              if (!campaignMode) {
+                setPinModeActive(true);
+                setTimeout(() => campaignMapWrapperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+              } else {
+                setPinModeActive(false);
+                setNewVolPin(null);
+                setCampaignPin(null);
+              }
+            }}
+            style={{
+              padding: '8px 16px', fontSize: '12px', fontWeight: '800', borderRadius: 4, border: 'none', cursor: 'pointer',
+              background: campaignMode ? '#ef4444' : '#D4A843',
+              color: campaignMode ? 'white' : navy,
+              display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all 0.15s ease'
+            }}
+          >
+            🎯 {campaignMode ? 'Cancel Campaign' : 'Launch Campaign'}
+          </button>
         </div>
       </div>
 
-      {/* Geographic View for role-bound hierarchy level */}
-      {geoLevel && (
-        <div style={{ marginBottom: 0 }}>
-          <HeatmapAnalysis level={geoLevel} hierarchy={hierarchy} />
-        </div>
-      )}
 
       {/* Top Stats */}
       <CampaignStats
@@ -442,6 +512,49 @@ const CampaignPanel = () => {
           wardsData={wardsData}
         />
       </div>
+
+      {/* Campaign Map */}
+      <div ref={campaignMapWrapperRef} style={{ height: 500, position: 'relative' }}>
+        <CampaignMap
+          mode={mode}
+          geojsonData={geojsonData}
+          constitsData={constitsData}
+          boundaryData={boundaryData}
+          wardsData={wardsData}
+          wardToConstit={wardToConstit}
+          selectedDistrict={selectedDistrict}
+          setSelectedDistrict={setSelectedDistrict}
+          selectedConstit={selectedConstit}
+          setSelectedConstit={setSelectedConstit}
+          selectedWard={selectedWard}
+          setSelectedWard={setSelectedWard}
+          volunteers={volunteers}
+          setSelectedVol={setSelectedVol}
+          coverageMap={coverageMap}
+          lockDistrict={lockDistrict}
+          lockConstituency={lockConstituency}
+          lockWard={lockWard}
+          pinModeActive={pinModeActive}
+          setPinModeActive={setPinModeActive}
+          newVolPin={newVolPin}
+          setNewVolPin={setNewVolPin}
+          handleCreateVolunteer={handleCreateVolunteer}
+          campaignMode={campaignMode}
+          onCampaignPinDrop={handleCampaignPinDrop}
+          activeCampaigns={activeCampaigns}
+          mapRef={mapRef}
+        />
+      </div>
+
+      {/* Campaign Creator Modal */}
+      <CampaignCreator
+        isOpen={showCampaignCreator}
+        onClose={() => { setShowCampaignCreator(false); setCampaignMode(false); setPinModeActive(false); setCampaignPin(null); }}
+        selectedLocation={campaignPin}
+        onCampaignCreated={handleCampaignCreated}
+        selectedDistrict={selectedDistrict}
+        selectedConstit={selectedConstit}
+      />
 
       {/* List and Tables Tabs */}
       <div className="card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 0, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

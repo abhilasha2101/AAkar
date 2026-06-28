@@ -373,6 +373,7 @@ def get_hub_messages(current_user: User = Depends(get_current_user)):
         MATCH (b:Broadcast)
         WHERE (b.recipient_id = $user_id)
            OR (b.sender_id = $user_id AND b.type = 'report')
+           OR (b.sender_id = $user_id AND b.type = 'broadcast')
         RETURN {_NODE_PROPS}
         ORDER BY b.created_at DESC
         LIMIT 50
@@ -390,6 +391,8 @@ def get_hub_messages(current_user: User = Depends(get_current_user)):
                 r["direction"] = "from_below"
             elif r["type"] == "report" and r["sender_id"] == uid:
                 r["direction"] = "my_report"
+            elif r["type"] == "broadcast" and r["sender_id"] == uid:
+                r["direction"] = "my_broadcast"
             else:
                 r["direction"] = "other"
             result.append(r)
