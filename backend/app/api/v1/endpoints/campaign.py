@@ -1,7 +1,7 @@
 """Campaign Management API – volunteers + constituency coverage."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -157,7 +157,7 @@ def update_volunteer(volunteer_id: int, data: VolunteerUpdate):
         updates = data.model_dump(exclude_none=True)
         for k, v in updates.items():
             setattr(vol, k, v)
-        vol.last_location_update = datetime.utcnow().isoformat()
+        vol.last_location_update = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         session.add(vol)
         session.commit()
         session.refresh(vol)
@@ -173,7 +173,7 @@ def update_location(volunteer_id: int, lat: float, lng: float):
         vol.lat = lat
         vol.lng = lng
         vol.status = "active"
-        vol.last_location_update = datetime.utcnow().isoformat()
+        vol.last_location_update = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         session.add(vol)
         session.commit()
         session.refresh(vol)
@@ -200,8 +200,8 @@ def mark_volunteer_covered(volunteer_id: int, mode: str = Query("abs")):
             if cov:
                 cov.covered = True
                 cov.covered_by = vol.name
-                cov.covered_at = datetime.utcnow().isoformat()
-                cov.updated_at = datetime.utcnow().isoformat()
+                cov.covered_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                cov.updated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 session.add(cov)
                 session.commit()
         return {"status": "ok", "volunteer_id": volunteer_id}
@@ -254,8 +254,8 @@ def update_coverage(district: str, constituency: str, data: CoverageUpdate, mode
         cov.covered = data.covered
         if data.covered_by:
             cov.covered_by = data.covered_by
-        cov.covered_at = datetime.utcnow().isoformat() if data.covered else None
-        cov.updated_at = datetime.utcnow().isoformat()
+        cov.covered_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z") if data.covered else None
+        cov.updated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         session.add(cov)
         session.commit()
         session.refresh(cov)
@@ -278,7 +278,7 @@ def mark_all_covered(district: str, covered_by: Optional[str] = Query(None), mod
             select(ConstituencyCoverage).where(ConstituencyCoverage.constituency.in_(constits_in_dist))
         ).all()
         
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         for row in rows:
             row.covered = True
             row.covered_by = covered_by or "Admin"
